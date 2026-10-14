@@ -1,0 +1,78 @@
+name: Build Debug APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: "Git tag or branch to build"
+        required: true
+        default: "v2.6.2"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref }}
+          submodules: recursive
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: OpenFlux/go.mod
+          cache-dependency-path: OpenFlux/go.sum
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Install Android SDK and NDK
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager \
+            "platforms;android-35" \
+            "build-tools;35.0.0" \
+            "ndk;27.0.12077973"
+
+      - name: Install gomobile
+        run: |
+          go install golang.org/x/mobile/cmd/gomobile@v0.0.0-20260908204917-8b95e45f8d3e
+          go install golang.org/x/mobile/cmd/gobind@v0.0.0-20260908204917-8b95e45f8d3e
+
+      - name: Build OpenFlux core
+        run: bash scripts/build-android-core.sh
+
+      - name: Test and build Debug APK
+        run: |
+          ./gradlew --no-daemon \
+            :shared:jvmTest \
+            :androidApp:assembleDebug
+
+      - name: Collect APKs and checksums
+        run: |
+          mkdir -p dist
+          find androidApp/build/outputs/apk/debug \
+            -type f -name '*.apk' -exec cp {} dist/ \;
+          test -n "$(find dist -name '*.apk' -print -quit)"
+          cd dist
+          sha256sum *.apk > SHA256SUMS.txt
+
+      - name: Upload APK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenFluxAndroid-Debug-${{ inputs.source_ref }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
