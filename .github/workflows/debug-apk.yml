@@ -43,13 +43,11 @@ jobs:
       - name: Install Android SDK and NDK
         run: |
           set -e
-          SDKMANAGER="${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager"
-          if [ ! -x "$SDKMANAGER" ]; then
-            SDKMANAGER="$(find "${ANDROID_HOME}/cmdline-tools" -type f -name sdkmanager | head -n 1)"
-          fi
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | head -n 1)"
           test -x "$SDKMANAGER"
-          yes | "$SDKMANAGER" --licenses >/dev/null || true
-          "$SDKMANAGER" \
+          yes | "$SDKMANAGER" --licenses || true
+          "$SDKMANAGER" --install \
             "platforms;android-35" \
             "build-tools;35.0.0" \
             "ndk;27.0.12077973"
