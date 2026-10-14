@@ -19,9 +19,15 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v4
         with:
-          repository: p1neappleXpress/OpenFluxAndroid        
+          repository: p1neappleXpress/OpenFluxAndroid
           ref: ${{ inputs.source_ref }}
           submodules: recursive
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -29,11 +35,8 @@ jobs:
           go-version-file: OpenFlux/go.mod
           cache-dependency-path: OpenFlux/go.sum
 
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -76,4 +79,3 @@ jobs:
           path: dist/*
           if-no-files-found: error
           retention-days: 7
-
