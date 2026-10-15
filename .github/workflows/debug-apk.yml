@@ -15,6 +15,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
@@ -35,42 +39,41 @@ jobs:
           go-version-file: OpenFlux/go.mod
           cache-dependency-path: OpenFlux/go.sum
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          accept-android-sdk-licenses: false
-
-       - name: Install Android SDK and NDK
-    env:
-      ANDROID_HOME: /usr/local/lib/android/sdk
-    run: |
-      set -e
-
-      export ANDROID_SDK_ROOT="$ANDROID_HOME"
-
-      SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" \
-        -type f -name sdkmanager | head -n 1)"
-
-      if [ -z "$SDKMANAGER" ] || [ ! -x "$SDKMANAGER" ]; then
-        echo "ERROR: sdkmanager not found in $ANDROID_HOME"
-        exit 1
-      fi
-
-      export PATH="$(dirname "$SDKMANAGER"):$ANDROID_HOME/platform-tools:$PATH"
-
-      echo "Using sdkmanager: $SDKMANAGER"
-      "$SDKMANAGER" --version
-
-      yes | "$SDKMANAGER" --licenses || true
-
-      "$SDKMANAGER" \
-        "platforms;android-35" \
-        "build-tools;35.0.0" \
-        "ndk;27.0.12077973"
-            
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
-        
+
+      - name: Locate Android SDK
+        run: |
+          set -e
+
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          test -d "$ANDROID_HOME"
+
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" \
+            -type f -name sdkmanager 2>/dev/null | sort -V | tail -n 1)"
+
+          if [ -z "$SDKMANAGER" ] || [ ! -x "$SDKMANAGER" ]; then
+            echo "::error::sdkmanager not found in $ANDROID_HOME/cmdline-tools"
+            exit 1
+          fi
+
+          echo "SDKMANAGER=$SDKMANAGER" >> "$GITHUB_ENV"
+          echo "$(dirname "$SDKMANAGER")" >> "$GITHUB_PATH"
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+
+          "$SDKMANAGER" --version
+
+      - name: Install Android SDK and NDK
+        run: |
+          set -e
+
+          yes | "$SDKMANAGER" --licenses || true
+
+          "$SDKMANAGER" \
+            "platforms;android-35" \
+            "build-tools;35.0.0" \
+            "ndk;27.0.12077973"
+
       - name: Install gomobile
         run: |
           go install golang.org/x/mobile/cmd/gomobile@v0.0.0-20260908204917-8b95e45f8d3e
@@ -87,12 +90,22 @@ jobs:
 
       - name: Collect APKs and checksums
         run: |
+          set -e
           mkdir -p dist
+
           find androidApp/build/outputs/apk/debug \
             -type f -name '*.apk' -exec cp {} dist/ \;
-          test -n "$(find dist -name '*.apk' -print -quit)"
+
+          if ! find dist -maxdepth 1 -type f -name '*.apk' -print -quit | grep -q .; then
+            echo "::error::No APK files found"
+            exit 1
+          fi
+
           cd dist
           sha256sum *.apk > SHA256SUMS.txt
+
+          echo "Generated APK files:"
+          ls -lh
 
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
