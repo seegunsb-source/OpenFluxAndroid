@@ -40,17 +40,33 @@ jobs:
         with:
           accept-android-sdk-licenses: false
 
-      - name: Install Android SDK and NDK
-        run: |
-          set -e
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | head -n 1)"
-          test -x "$SDKMANAGER"
-          yes | "$SDKMANAGER" --licenses || true
-          "$SDKMANAGER" --install \
-            "platforms;android-35" \
-            "build-tools;35.0.0" \
-            "ndk;27.0.12077973"
+       - name: Install Android SDK and NDK
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+    run: |
+      set -e
+
+      export ANDROID_SDK_ROOT="$ANDROID_HOME"
+
+      SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" \
+        -type f -name sdkmanager | head -n 1)"
+
+      if [ -z "$SDKMANAGER" ] || [ ! -x "$SDKMANAGER" ]; then
+        echo "ERROR: sdkmanager not found in $ANDROID_HOME"
+        exit 1
+      fi
+
+      export PATH="$(dirname "$SDKMANAGER"):$ANDROID_HOME/platform-tools:$PATH"
+
+      echo "Using sdkmanager: $SDKMANAGER"
+      "$SDKMANAGER" --version
+
+      yes | "$SDKMANAGER" --licenses || true
+
+      "$SDKMANAGER" \
+        "platforms;android-35" \
+        "build-tools;35.0.0" \
+        "ndk;27.0.12077973"
             
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
